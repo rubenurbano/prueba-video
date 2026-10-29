@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visor de vídeos</title>
+<style>
+  :root {
+    --fondo: #f5f3ee;
+    --texto: #1c1c1c;
+    --tarjeta: #ffffff;
+    --borde: #d9d5cb;
+    --acento: #c2410c;
+    --suave: #6b6b6b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo: #16171a;
+      --texto: #ececec;
+      --tarjeta: #212329;
+      --borde: #3a3d45;
+      --acento: #fb923c;
+      --suave: #a0a3ab;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 16px 14px 40px;
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.45;
+  }
+  main { max-width: 900px; margin: 0 auto; }
+  h1 { font-size: 1.35rem; margin: 0 0 12px; }
+  .visor { background: #000; border-radius: 12px; overflow: hidden; }
+  video { display: block; width: 100%; max-height: 70vh; background: #000; }
+  #titulo { margin: 12px 2px 4px; font-size: 1.1rem; font-weight: 600; }
+  .barra { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 16px; }
+  button {
+    font: inherit;
+    padding: 8px 14px;
+    border: 1px solid var(--borde);
+    border-radius: 8px;
+    background: var(--tarjeta);
+    color: var(--texto);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--acento); }
+  button:disabled { opacity: .4; cursor: default; }
+  label.auto { display: flex; align-items: center; gap: 6px; margin-left: auto; color: var(--suave); font-size: .95rem; }
+  #contador { color: var(--suave); font-size: .95rem; }
+  ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+  li button {
+    width: 100%;
+    text-align: left;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 14px;
+  }
+  li button.activo { border-color: var(--acento); background: var(--acento); color: #fff; }
+  li .peso { color: var(--suave); white-space: nowrap; font-size: .9rem; }
+  li button.activo .peso { color: #fff; opacity: .85; }
+  #mensaje { padding: 14px; border: 1px dashed var(--borde); border-radius: 10px; color: var(--suave); }
+</style>
+</head>
+<body>
+<main>
+  <h1 id="cabecera">Vídeos</h1>
+
+  <div class="visor"><video id="v" controls playsinline preload="metadata"></video></div>
+  <div id="titulo"></div>
+
+  <div class="barra">
+    <button id="ant">← Anterior</button>
+    <button id="sig">Siguiente →</button>
+    <span id="contador"></span>
+    <label class="auto"><input type="checkbox" id="auto" checked> Pasar al siguiente</label>
+  </div>
+
+  <div id="mensaje">Cargando la lista de vídeos…</div>
+  <ul id="lista"></ul>
+</main>
+
+<script>
+  // Configuración. Si la página está en usuario.github.io/repo/, usuario y repo se detectan solos.
+  const PARTES = location.pathname.split('/').filter(Boolean);
+  const USUARIO = location.hostname.endsWith('.github.io') ? location.hostname.split('.')[0] : 'rubenurbano';
+  const REPO    = location.hostname.endsWith('.github.io') && PARTES.length > 0 ? PARTES[0] : 'prueba-video';
+  // Carpeta con los vídeos. Se puede cambiar en la dirección: visor.html?carpeta=otra-carpeta
+  const CARPETA = new URLSearchParams(location.search).get('carpeta') || 'videos';
+  const EXT = /\.(mp4|webm|m4v|mov)$/i;
+
+  const v = document.getElementById('v');
+  const lista = document.getElementById('lista');
+  const msg = document.getElementById('mensaje');
+  const tituloEl = document.getElementById('titulo');
+  const contador = document.getElementById('contador');
+  const btnAnt = document.getElementById('ant');
+  const btnSig = document.getElementById('sig');
+  let videos = [];
+  let actual = -1;
+
+  function bonito(nombre) {
+    const t = nombre.replace(EXT, '').replace(/[-_]+/g, ' ').trim();
+    return t.charAt(0).toUpperCase() + t.slice(1);
+  }
+  function mb(bytes) { return (bytes / 1048576).toFixed(1).replace('.', ',') + ' MB'; }
+
+  function reproducir(i, arrancar) {
+    if (i < 0 || i >= videos.length) return;
+    actual = i;
+    const it = videos[i];
+    v.src = encodeURI(CARPETA + '/' + it.name);
+    tituloEl.textContent = bonito(it.name);
+    contador.textContent = (i + 1) + ' de ' + videos.length;
+    btnAnt.disabled = i === 0;
+    btnSig.disabled = i === videos.length - 1;
+    lista.querySelectorAll('button').forEach((b, k) => b.classList.toggle('activo', k === i));
+    if (arrancar) v.play().catch(() => {});
+    history.replaceState(null, '', '#' + encodeURIComponent(it.name));
+  }
+
+  function dibujar() {
+    lista.innerHTML = '';
+    videos.forEach((it, i) => {
+      const li = document.createElement('li');
+      const b = document.createElement('button');
+      const t = document.createElement('span');
+      const p = document.createElement('span');
+      t.textContent = bonito(it.name);
+      p.className = 'peso';
+      p.textContent = mb(it.size);
+      b.append(t, p);
+      b.addEventListener('click', () => { reproducir(i, true); window.scrollTo({ top: 0, behavior: 'smooth' }); });
+      li.appendChild(b);
+      lista.appendChild(li);
+    });
+  }
+
+  async function cargar() {
+    const url = 'https://api.github.com/repos/' + USUARIO + '/' + REPO + '/contents/' + CARPETA;
+    try {
+      const r = await fetch(url, { headers: { 'Accept': 'application/vnd.github+json' } });
+      if (r.status === 403 || r.status === 429) throw new Error('GitHub ha limitado las consultas. Espera unos minutos y recarga.');
+      if (r.status === 404) throw new Error('No existe la carpeta "' + CARPETA + '" en el repositorio ' + USUARIO + '/' + REPO + '.');
+      if (!r.ok) throw new Error('Error ' + r.status + ' al leer la carpeta.');
+      const datos = await r.json();
+      videos = datos.filter(f => f.type === 'file' && EXT.test(f.name))
+                    .sort((a, b) => a.name.localeCompare(b.name, 'es', { numeric: true }));
+      if (!videos.length) throw new Error('La carpeta "' + CARPETA + '" no tiene vídeos todavía.');
+      msg.remove();
+      dibujar();
+      const pedido = decodeURIComponent(location.hash.slice(1));
+      const ini = Math.max(0, videos.findIndex(x => x.name === pedido));
+      reproducir(ini, false);
+    } catch (e) {
+      msg.textContent = e.message || 'No se pudo cargar la lista.';
+      btnAnt.disabled = btnSig.disabled = true;
+    }
+  }
+
+  btnAnt.addEventListener('click', () => reproducir(actual - 1, true));
+  btnSig.addEventListener('click', () => reproducir(actual + 1, true));
+  v.addEventListener('ended', () => {
+    if (document.getElementById('auto').checked && actual < videos.length - 1) reproducir(actual + 1, true);
+  });
+  v.addEventListener('error', () => {
+    if (actual >= 0) tituloEl.textContent = bonito(videos[actual].name) + ' (no se puede reproducir)';
+  });
+
+  btnAnt.disabled = btnSig.disabled = true;
+  cargar();
+</script>
+</body>
+</html>
