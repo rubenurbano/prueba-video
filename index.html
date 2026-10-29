@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Prueba de vídeo en HTML</title>
+<style>
+  :root {
+    --fondo: #f5f3ee;
+    --texto: #1c1c1c;
+    --tarjeta: #ffffff;
+    --acento: #c2410c;
+    --borde: #d9d5cb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --fondo: #16171a;
+      --texto: #ececec;
+      --tarjeta: #212329;
+      --acento: #fb923c;
+      --borde: #3a3d45;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 24px 16px 48px;
+    background: var(--fondo);
+    color: var(--texto);
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    line-height: 1.5;
+  }
+  main { max-width: 860px; margin: 0 auto; }
+  h1 { font-size: 1.5rem; margin: 0 0 4px; }
+  p.sub { margin: 0 0 20px; opacity: .75; }
+  .visor {
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    position: relative;
+  }
+  video { display: block; width: 100%; height: auto; }
+  .rotulo {
+    position: absolute;
+    left: 16px; bottom: 56px;
+    background: rgba(0,0,0,.65);
+    color: #fff;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 1rem;
+    opacity: 0;
+    transition: opacity .3s;
+    pointer-events: none;
+  }
+  .rotulo.visible { opacity: 1; }
+  .panel {
+    margin-top: 16px;
+    background: var(--tarjeta);
+    border: 1px solid var(--borde);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  button, select {
+    font: inherit;
+    padding: 8px 14px;
+    border: 1px solid var(--borde);
+    border-radius: 8px;
+    background: var(--tarjeta);
+    color: var(--texto);
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--acento); }
+  button.principal { background: var(--acento); color: #fff; border-color: var(--acento); }
+  .barra {
+    margin-top: 14px;
+    height: 8px;
+    background: var(--borde);
+    border-radius: 4px;
+    cursor: pointer;
+    overflow: hidden;
+  }
+  .barra > div { height: 100%; width: 0; background: var(--acento); }
+  .tiempo { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .marcas { margin-top: 14px; }
+  .marcas h2 { font-size: 1rem; margin: 0 0 8px; }
+  .marcas button.activa { background: var(--acento); color: #fff; border-color: var(--acento); }
+  #estado { margin-top: 12px; font-size: .9rem; opacity: .75; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Prueba de vídeo en HTML</h1>
+  <p class="sub">El archivo de vídeo tiene que estar en la misma carpeta que esta página.</p>
+
+  <div class="visor">
+    <video id="v" controls playsinline preload="metadata">
+      <source src="gemini_generated_video_f608b016.mp4" type="video/mp4">
+      Tu navegador no puede reproducir este vídeo.
+    </video>
+    <div class="rotulo" id="rotulo"></div>
+  </div>
+
+  <div class="panel">
+    <div class="fila">
+      <button class="principal" id="btnPlay">▶ Reproducir</button>
+      <button id="btnAtras">−2 s</button>
+      <button id="btnAdelante">+2 s</button>
+      <button id="btnSilencio">Silenciar</button>
+      <label>Velocidad
+        <select id="velocidad">
+          <option value="0.5">0,5×</option>
+          <option value="1" selected>1×</option>
+          <option value="1.5">1,5×</option>
+          <option value="2">2×</option>
+        </select>
+      </label>
+      <span class="tiempo" id="tiempo">0:00 / 0:00</span>
+    </div>
+
+    <div class="barra" id="barra" title="Haz clic para saltar"><div id="progreso"></div></div>
+
+    <div class="marcas">
+      <h2>Saltar a un momento</h2>
+      <div class="fila" id="marcas"></div>
+    </div>
+    <div id="estado"></div>
+  </div>
+</main>
+
+<script>
+  const v = document.getElementById('v');
+  const btnPlay = document.getElementById('btnPlay');
+  const tiempo = document.getElementById('tiempo');
+  const progreso = document.getElementById('progreso');
+  const rotulo = document.getElementById('rotulo');
+  const estado = document.getElementById('estado');
+
+  // Textos que aparecen sobre el vídeo según el segundo.
+  // Cambia los tiempos y los textos por los tuyos.
+  const momentos = [
+    { desde: 0,   hasta: 3,  texto: 'Inicio' },
+    { desde: 3,   hasta: 6,  texto: 'Segundo tramo' },
+    { desde: 6,   hasta: 10, texto: 'Final' }
+  ];
+
+  function fmt(s) {
+    if (!isFinite(s)) return '0:00';
+    const m = Math.floor(s / 60);
+    const r = Math.floor(s % 60).toString().padStart(2, '0');
+    return m + ':' + r;
+  }
+
+  // Botones para saltar a cada momento
+  const contMarcas = document.getElementById('marcas');
+  momentos.forEach((m, i) => {
+    const b = document.createElement('button');
+    b.textContent = fmt(m.desde) + ' · ' + m.texto;
+    b.addEventListener('click', () => { v.currentTime = m.desde; v.play(); });
+    b.dataset.i = i;
+    contMarcas.appendChild(b);
+  });
+
+  function actualizar() {
+    const t = v.currentTime, d = v.duration || 0;
+    tiempo.textContent = fmt(t) + ' / ' + fmt(d);
+    progreso.style.width = d ? (t / d * 100) + '%' : '0';
+
+    const actual = momentos.findIndex(m => t >= m.desde && t < m.hasta);
+    if (actual >= 0) {
+      rotulo.textContent = momentos[actual].texto;
+      rotulo.classList.add('visible');
+    } else {
+      rotulo.classList.remove('visible');
+    }
+    contMarcas.querySelectorAll('button').forEach(b =>
+      b.classList.toggle('activa', Number(b.dataset.i) === actual));
+  }
+
+  v.addEventListener('timeupdate', actualizar);
+  v.addEventListener('loadedmetadata', () => {
+    actualizar();
+    estado.textContent = 'Vídeo cargado: ' + v.videoWidth + '×' + v.videoHeight + ', ' + fmt(v.duration);
+  });
+  v.addEventListener('play',  () => btnPlay.textContent = '⏸ Pausa');
+  v.addEventListener('pause', () => btnPlay.textContent = '▶ Reproducir');
+  v.addEventListener('ended', () => btnPlay.textContent = '↺ Repetir');
+  v.addEventListener('error', () => {
+    estado.textContent = 'No se encuentra el vídeo. Comprueba que gemini_generated_video_f608b016.mp4 está en la misma carpeta que este HTML.';
+  });
+
+  btnPlay.addEventListener('click', () => {
+    if (v.ended) v.currentTime = 0;
+    v.paused || v.ended ? v.play() : v.pause();
+  });
+  document.getElementById('btnAtras').addEventListener('click', () => v.currentTime = Math.max(0, v.currentTime - 2));
+  document.getElementById('btnAdelante').addEventListener('click', () => v.currentTime = Math.min(v.duration, v.currentTime + 2));
+  document.getElementById('btnSilencio').addEventListener('click', e => {
+    v.muted = !v.muted;
+    e.target.textContent = v.muted ? 'Activar sonido' : 'Silenciar';
+  });
+  document.getElementById('velocidad').addEventListener('change', e => v.playbackRate = Number(e.target.value));
+  document.getElementById('barra').addEventListener('click', e => {
+    const r = e.currentTarget.getBoundingClientRect();
+    v.currentTime = ((e.clientX - r.left) / r.width) * v.duration;
+  });
+</script>
+</body>
+</html>
